@@ -29,6 +29,17 @@ func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail p
 			description: "exit the pokedex",
 			callback:    func(map[string]cliCommand) { CommandExit() }, //anon function that takes required params and calls niladic func
 		},
+		// 	"map":{
+		// 		name: "map",
+		// 		description: "display the next locations",
+		// 		callback: func(m map[string]cliCommand) {}, //implement
+		// 	}
+		// 	"mapb":{
+		// 		name: "map back",
+		// 		description: "display the previous locations",
+		// 		callback: func(m map[string]cliCommand) {}, //imp
+		// 	}
+		// }
 	}
 	return commands
 }
@@ -75,3 +86,7 @@ func CommandExit() {
 func HandleUnknownKeys(in string) {
 	fmt.Printf("%s is not a recognised command, please try again", in)
 }
+
+func CommandMap() {} //implement
+
+func CommandMapB() {} //implement
