@@ -2,9 +2,13 @@ package util
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 type LocationAreaBatch struct {
@@ -14,54 +18,63 @@ type LocationAreaBatch struct {
 
 const (
 	LocationAreaApiUrl = "https://pokeapi.co/api/v2/location-area"
-	LocationApiUrl     = "https://pokeapi.co/api/v2/location/"
+	//LocationApiUrl     = "https://pokeapi.co/api/v2/location/" - not needed yet
 )
 
 type LocationArea struct {
-	Name string `json:"name"`
+	Name string `json:"name"` //will capture more information as needed
 	Url  string `json:"url"`
 }
 
-//call will need to be recursive
+var JsonDB []LocationArea //should look at removing this - global variables == bad
 
-func GetNextLocations() {}
-
-func GetPreviousLocations() {}
-
-func LocationCache() {}
-
-func ParseLocationAreas(toParse string) []LocationArea {
+func ParseLocationAreas(toParse string) ([]LocationArea, error) { //recursively get location areas and add to DB
 	response, err := http.Get(toParse)
 	if err != nil {
-		log.Fatalf("error making http request %v", err)
+		return nil, errors.New("error making get request")
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Fatalf("error reading response body: %v", err)
+		return nil, errors.New("error reading body")
 	}
+
 	var batches LocationAreaBatch
-
 	err = json.Unmarshal(body, &batches)
+
 	if err != nil {
-		log.Fatalf("error parsing json %v", err)
+		return nil, errors.New("error parsing json")
 	}
 
-	var tempJson []LocationArea
-	if batches.Next != "null" { //maybe a channel could wait to get next 20?
-		tempJson = (parseCollection(batches.Results, tempJson))
-		ParseLocationAreas(batches.Next)
-	}
-	tempJson = parseCollection(batches.Results, tempJson) //one more
+	JsonDB := append(JsonDB, batches.Results...)
 
-	return tempJson
+	if batches.Next != "null" && batches.Next != "" { //maybe a channel could wait to get next 20?
+		next, err := ParseLocationAreas(batches.Next)
+
+		if err != nil {
+			return nil, errors.New("error parsing json")
+		}
+		JsonDB = append(JsonDB, next...)
+	}
+	slices.SortFunc(JsonDB, CompareLocations)
+	return JsonDB, nil
 
 }
 
-func parseCollection[T any](collection []T, result []T) []T {
-	result = append(result, collection...) //very cool - ... passes elements one by one to the function!
-	return result
+func CompareLocations(x, y LocationArea) int { //comparison function
+	a, errA := strconv.Atoi(getNumber(x.Url))
+	if errA != nil {
+		log.Fatal("error in parsing of URLs")
+	}
+	b, errB := strconv.Atoi(getNumber(y.Url))
+	if errB != nil {
+		log.Fatal("error in parsing of URLs")
+	}
+	return a - b
 }
-
-////test this tmrw - my thinking is, first collect a big list of all listed locations using recursion - once I have that and understand whats happening, can do more stuff
+func getNumber(x string) string { //retrieve the number of the location area from the url
+	x = strings.TrimPrefix(x, "https://pokeapi.co/api/v2/location-area/")
+	x = strings.TrimSuffix(x, "/")
+	return x
+}
