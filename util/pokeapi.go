@@ -28,7 +28,7 @@ type LocationArea struct {
 
 var JsonDB []LocationArea //should look at removing this - global variables == bad
 
-func ParseLocationAreas(toParse string) ([]LocationArea, error) { //recursively get location areas and add to DB
+func GetJson(toParse string) ([]byte, error) {
 	response, err := http.Get(toParse)
 	if err != nil {
 		return nil, errors.New("error making get request")
@@ -39,19 +39,28 @@ func ParseLocationAreas(toParse string) ([]LocationArea, error) { //recursively 
 	if err != nil {
 		return nil, errors.New("error reading body")
 	}
+	return body, nil
+}
 
+func ParseLocationAreas(toParse string, c *Cache) ([]LocationArea, error) { //recursively get location areas and add to DB
+	InCache := func(key string) bool {
+		_, ok := c.Entries[key] //call cache
+		return ok
+	}
+	if InCache(toParse) {
+		return c.Entries[toParse].val, nil
+	}
+	Json, _ := GetJson(toParse)
 	var batches LocationAreaBatch
-	err = json.Unmarshal(body, &batches)
+	err := json.Unmarshal(Json, &batches)
 
 	if err != nil {
 		return nil, errors.New("error parsing json")
 	}
-
 	JsonDB := append(JsonDB, batches.Results...)
-
+	c.Add(toParse, batches.Results)                   // add to cache
 	if batches.Next != "null" && batches.Next != "" { //maybe a channel could wait to get next 20?
-		next, err := ParseLocationAreas(batches.Next)
-
+		next, err := ParseLocationAreas(batches.Next, c)
 		if err != nil {
 			return nil, errors.New("error parsing json")
 		}
@@ -78,3 +87,6 @@ func getNumber(x string) string { //retrieve the number of the location area fro
 	x = strings.TrimSuffix(x, "/")
 	return x
 }
+
+//1.fix cache
+//2. dont download every result on startup

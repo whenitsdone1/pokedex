@@ -8,7 +8,7 @@ import (
 func TestParseLocationAreas(t *testing.T) {
 	t.Run("parse fields correctly", func(t *testing.T) {
 		url := "https://pokeapi.co/api/v2/location-area"
-		locations, err := ParseLocationAreas(url)
+		locations, err := ParseLocationAreas(url, DataStore)
 
 		if err != nil {
 			t.Fatalf("unexpected error %v encounterd", err)

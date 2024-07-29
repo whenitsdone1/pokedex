@@ -23,6 +23,7 @@ func (c *Counter) Recede() {
 
 var Pointer = &Counter{}
 var InitMap, _ = initMap() //how do we check errors here?
+var DataStore = NewCache(5)
 
 //hold type information and methods
 
@@ -103,14 +104,14 @@ func HandleUnknownKeys(in string) {
 }
 
 func initMap() ([]LocationArea, error) {
-	InitalMap, err := ParseLocationAreas(LocationAreaApiUrl)
+	InitalMap, err := ParseLocationAreas(LocationAreaApiUrl, DataStore)
 	if err != nil {
 		return nil, errors.New("error parsing json")
 	}
 	return InitalMap, nil
 }
 
-func CommandMap(areas []LocationArea) {
+func CommandMap(areas []LocationArea) { //the way these functions work is not to make requests
 	if Pointer.Value >= len(InitMap) {
 		fmt.Println("you've reached the end of the world, we can't go any further!")
 		return

@@ -1,6 +1,7 @@
 package util
 
 import (
+	"slices"
 	"time"
 )
 
@@ -11,7 +12,7 @@ type Cache struct {
 }
 type cacheEntry struct {
 	createdAt time.Time
-	val       []byte
+	val       []LocationArea
 }
 
 func NewCache(duration int) *Cache {
@@ -20,7 +21,8 @@ func NewCache(duration int) *Cache {
 	return CreatedCache
 }
 
-func (c *Cache) Add(key string, val []byte) { //try as a method
+func (c *Cache) Add(key string, val []LocationArea) { //try as a method
+	slices.SortFunc(val, CompareLocations)
 	c.Entries[key] = cacheEntry{createdAt: time.Now(), val: val} //difference?
 }
 
