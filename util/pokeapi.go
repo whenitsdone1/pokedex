@@ -12,8 +12,9 @@ import (
 )
 
 type LocationAreaBatch struct {
-	Next    string         `json:"next"`
-	Results []LocationArea `json:"results"` //?
+	Next     string         `json:"next"`
+	Results  []LocationArea `json:"results"` //?
+	Previous string         `json:"previous"`
 }
 
 const (
@@ -25,8 +26,6 @@ type LocationArea struct {
 	Name string `json:"name"` //will capture more information as needed
 	Url  string `json:"url"`
 }
-
-var JsonDB []LocationArea //should look at removing this - global variables == bad
 
 func GetJson(toParse string) ([]byte, error) {
 	response, err := http.Get(toParse)
@@ -42,7 +41,7 @@ func GetJson(toParse string) ([]byte, error) {
 	return body, nil
 }
 
-func ParseLocationAreas(toParse string, c *Cache) ([]LocationArea, error) { //recursively get location areas and add to DB
+func ParseLocationAreas(toParse string, c *Cache) (LocationAreaBatch, error) { //we need to update next and previous, so need to return LocationAreaBatch
 	InCache := func(key string) bool {
 		_, ok := c.Entries[key] //call cache
 		return ok
@@ -55,19 +54,12 @@ func ParseLocationAreas(toParse string, c *Cache) ([]LocationArea, error) { //re
 	err := json.Unmarshal(Json, &batches)
 
 	if err != nil {
-		return nil, errors.New("error parsing json")
+		var Zero LocationAreaBatch
+		return Zero, errors.New("error parsing json")
 	}
-	JsonDB := append(JsonDB, batches.Results...)
-	c.Add(toParse, batches.Results)                   // add to cache
-	if batches.Next != "null" && batches.Next != "" { //maybe a channel could wait to get next 20?
-		next, err := ParseLocationAreas(batches.Next, c)
-		if err != nil {
-			return nil, errors.New("error parsing json")
-		}
-		JsonDB = append(JsonDB, next...)
-	}
-	slices.SortFunc(JsonDB, CompareLocations)
-	return JsonDB, nil
+	slices.SortFunc(batches.Results, CompareLocations)
+	c.Add(toParse, batches) // add to cache
+	return batches, nil
 
 }
 
@@ -88,5 +80,9 @@ func getNumber(x string) string { //retrieve the number of the location area fro
 	return x
 }
 
+//0. refactor like half the app so that a cache makes anysense
 //1.fix cache
 //2. dont download every result on startup
+
+//idea - just return next and write to a channel so every next call parses next page rather than parsing as a big db
+//back would need to access previous, will need to add a field to json parsing

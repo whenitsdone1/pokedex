@@ -14,10 +14,10 @@ func TestParseLocationAreas(t *testing.T) {
 			t.Fatalf("unexpected error %v encounterd", err)
 		}
 
-		for _, element := range locations { //ingesting the first page properly, but isnt yet getting every page
+		for _, element := range locations.Results { //ingesting the first page properly, but isnt yet getting every page
 			fmt.Println(element.Url)
 		}
-		fmt.Println(len(locations))
+		fmt.Println(len(locations.Results))
 	})
 }
 

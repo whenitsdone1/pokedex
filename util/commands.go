@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -22,8 +21,12 @@ func (c *Counter) Recede() {
 }
 
 var Pointer = &Counter{}
-var InitMap, _ = initMap() //how do we check errors here?
+
+var LocationAreaState, _ = ParseLocationAreas(LocationAreaApiUrl, DataStore)
+
+// var InitMap, _ = initMap() //how do we check errors here?
 var DataStore = NewCache(5)
+var FirstCall = true
 
 //hold type information and methods
 
@@ -48,12 +51,16 @@ func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail p
 		"map": {
 			name:        "map",
 			description: "display the next locations",
-			callback:    func(m map[string]cliCommand) { CommandMap(InitMap) }, //implement
+			callback: func(m map[string]cliCommand) { //implement
+				LocationAreaState = CommandMap(LocationAreaState)
+			},
 		},
 		"mapb": {
 			name:        "map back",
 			description: "display the previous locations",
-			callback:    func(m map[string]cliCommand) { CommandMapB(InitMap) }, //imp
+			callback: func(m map[string]cliCommand) {
+				LocationAreaState = CommandMapB(LocationAreaState)
+			}, //imp
 		},
 	}
 
@@ -103,41 +110,59 @@ func HandleUnknownKeys(in string) {
 	fmt.Printf("%s is not a recognised command, please try again", in)
 }
 
-func initMap() ([]LocationArea, error) {
-	InitalMap, err := ParseLocationAreas(LocationAreaApiUrl, DataStore)
-	if err != nil {
-		return nil, errors.New("error parsing json")
+func CommandMap(areas LocationAreaBatch) LocationAreaBatch { //state?
+	if FirstCall {
+		for i := range areas.Results {
+			fmt.Println(areas.Results[i].Name)
+			FirstCall = false
+			return areas
+		}
 	}
-	return InitalMap, nil
+	if areas.Next != "null" && areas.Next != "" { //may need to start returning stuff to update the state holding struct
+		next, err := ParseLocationAreas(areas.Next, DataStore)
+		if err != nil {
+			fmt.Printf("%v oopsie when parsing jason", err)
+		}
+		for i := range next.Results {
+			fmt.Println(next.Results[i].Name)
+		}
+		return next
+	}
+	fmt.Println("you've reached the end of the world, we can't go any further!")
+	return areas
 }
 
-func CommandMap(areas []LocationArea) { //the way these functions work is not to make requests
-	if Pointer.Value >= len(InitMap) {
-		fmt.Println("you've reached the end of the world, we can't go any further!")
-		return
-	}
-	for i := Pointer.Value; i < Pointer.Value+20; i++ {
-		fmt.Println(areas[i].Name)
-	}
-	if (Pointer.Value + 20) < len(InitMap) {
-		Pointer.Advance()
-	}
-}
-
-func CommandMapB(areas []LocationArea) {
-	if Pointer.Value == 0 {
+func CommandMapB(areas LocationAreaBatch) LocationAreaBatch {
+	if FirstCall {
 		fmt.Println("we're back at the start!")
-		return
+		FirstCall = false
+		return areas
 	}
-	if (Pointer.Value - 20) <= 0 { //handle index error in the negative case
-		Pointer.Value = 0
-	} else {
-		Pointer.Recede()
+	if areas.Previous != "null" && areas.Previous != "" { //maybe a channel could wait to get next 20?
+		last, err := ParseLocationAreas(areas.Next, DataStore)
+		if err != nil {
+			fmt.Printf("%v oopsie when parsing jason", err)
+		}
+		for i := range last.Results {
+			fmt.Println(last.Results[i].Name)
+		}
+		return last
 	}
-	for i := Pointer.Value; i < Pointer.Value+20; i++ {
-		fmt.Println(areas[i].Name)
-	}
+	fmt.Println("we're back at the start!")
+	return areas
 }
 
 //current ideas - implement concurrency when generating map - store more information
 //write more extensive testing
+
+// if batches.Next != "null" && batches.Next != "" { //maybe a channel could wait to get next 20?
+// 	next, err := ParseLocationAreas(batches.Next, c)
+// 	if err != nil {
+// 		return nil, errors.New("error parsing json")
+// 	}
+// 	JsonDB = append(JsonDB, next...)
+// }
+
+/* READMEhave made the following modifications -> no longer parses entire api tree, should just make requests as needed
+stored global state through package LocationAreaState declaration, implemented untested caching and concurrent elements,
+TODO -> test basic parsing and api traversal, then test caching, then implement concurrency */
