@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 
 type LocationAreaBatch struct {
 	Next     string         `json:"next"`
-	Results  []LocationArea `json:"results"` //?
+	Results  []LocationArea `json:"results"`
 	Previous string         `json:"previous"`
 }
 
@@ -42,23 +43,25 @@ func GetJson(toParse string) ([]byte, error) {
 }
 
 func ParseLocationAreas(toParse string, c *Cache) (LocationAreaBatch, error) { //we need to update next and previous, so need to return LocationAreaBatch
-	InCache := func(key string) bool {
-		_, ok := c.Entries[key] //call cache
-		return ok
+	if val, ok := c.Get(toParse); ok {
+		fmt.Println("Using the cache!")
+		return val, nil
 	}
-	if InCache(toParse) {
-		return c.Entries[toParse].val, nil
+	fmt.Println("Could not get from Cache, fetching...")
+	Json, err := GetJson(toParse)
+	if err != nil {
+		return LocationAreaBatch{}, err
 	}
-	Json, _ := GetJson(toParse)
 	var batches LocationAreaBatch
-	err := json.Unmarshal(Json, &batches)
+	err = json.Unmarshal(Json, &batches)
 
 	if err != nil {
-		var Zero LocationAreaBatch
-		return Zero, errors.New("error parsing json")
+		return LocationAreaBatch{}, errors.New("error parsing json")
 	}
+
 	slices.SortFunc(batches.Results, CompareLocations)
 	c.Add(toParse, batches) // add to cache
+	fmt.Println("Adding to cache..")
 	return batches, nil
 
 }
@@ -79,10 +82,3 @@ func getNumber(x string) string { //retrieve the number of the location area fro
 	x = strings.TrimSuffix(x, "/")
 	return x
 }
-
-//0. refactor like half the app so that a cache makes anysense
-//1.fix cache
-//2. dont download every result on startup
-
-//idea - just return next and write to a channel so every next call parses next page rather than parsing as a big db
-//back would need to access previous, will need to add a field to json parsing

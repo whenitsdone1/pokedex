@@ -5,38 +5,20 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var UnknownKeyError error
-
-type Counter struct {
-	Value int
-}
-
-func (c *Counter) Advance() { //global state == bad, how are you meant to do this?
-	c.Value += 20
-}
-func (c *Counter) Recede() {
-	c.Value -= 40 //because we call advance at the end of calling map the pointer ends up 40 places ahead of the previous values we are interested in
-}
-
-var Pointer = &Counter{}
-
-var LocationAreaState, _ = ParseLocationAreas(LocationAreaApiUrl, DataStore)
-
-// var InitMap, _ = initMap() //how do we check errors here?
-var DataStore = NewCache(5)
-var FirstCall = true
-
-//hold type information and methods
+var LocationAreaState LocationAreaBatch
+var DataStore = NewCache(30 * time.Second) //Set cache duration here
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(map[string]cliCommand) //this is gonna cause problems...
+	callback    func(map[string]cliCommand) //TODO: Refactor this to a more appropriate function signature
 }
 
-func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail prior to compile time
+func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 	commands := map[string]cliCommand{
 		"help": {
 			name:        "help",
@@ -46,7 +28,7 @@ func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail p
 		"exit": {
 			name:        "exit",
 			description: "exit the pokedex",
-			callback:    func(map[string]cliCommand) { CommandExit() }, //anon function that takes required params and calls niladic func
+			callback:    func(map[string]cliCommand) { CommandExit() }, //TODO: Make this hacky stuff not needed
 		},
 		"map": {
 			name:        "map",
@@ -60,7 +42,7 @@ func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail p
 			description: "display the previous locations",
 			callback: func(m map[string]cliCommand) {
 				LocationAreaState = CommandMapB(LocationAreaState)
-			}, //imp
+			},
 		},
 	}
 
@@ -86,8 +68,8 @@ func SanitizeInput(in string) string {
 	return sanitized
 }
 
-func CommandHelp(commands map[string]cliCommand) { //when do we print the pokedex > thing? somewhere in main?
-	var loopVar int //there's gotta be a more elegant way to do this
+func CommandHelp(commands map[string]cliCommand) {
+	var loopVar int //TODO: Find a less hacky way to do this
 	for _, entry := range commands {
 		if entry.name == "help" {
 			continue
@@ -110,36 +92,35 @@ func HandleUnknownKeys(in string) {
 	fmt.Printf("%s is not a recognised command, please try again", in)
 }
 
-func CommandMap(areas LocationAreaBatch) LocationAreaBatch { //state?
-	if FirstCall {
-		for i := range areas.Results {
-			fmt.Println(areas.Results[i].Name)
-			FirstCall = false
-			return areas
-		}
+func CommandMap(areas LocationAreaBatch) LocationAreaBatch {
+	url := LocationAreaApiUrl //? are we setting the target URL to the start everytime? TODO: Understand this better
+	if areas.Next != "" {
+		url = areas.Next
 	}
-	if areas.Next != "null" && areas.Next != "" { //may need to start returning stuff to update the state holding struct
-		next, err := ParseLocationAreas(areas.Next, DataStore)
-		if err != nil {
-			fmt.Printf("%v oopsie when parsing jason", err)
-		}
-		for i := range next.Results {
-			fmt.Println(next.Results[i].Name)
-		}
-		return next
+
+	next, err := ParseLocationAreas(url, DataStore)
+	if err != nil {
+		return LocationAreaBatch{}
 	}
-	fmt.Println("you've reached the end of the world, we can't go any further!")
-	return areas
+
+	for _, area := range next.Results {
+		fmt.Println(area.Name)
+	}
+
+	if next.Next == "" {
+		fmt.Println("You've reached the end of the world, we can't go any further!")
+	}
+
+	return next
 }
 
-func CommandMapB(areas LocationAreaBatch) LocationAreaBatch {
-	if FirstCall {
-		fmt.Println("we're back at the start!")
-		FirstCall = false
+func CommandMapB(areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and make sure refactoring is not needed here
+	if areas.Previous == "null" || areas.Previous == "" {
+		fmt.Println("we're still at the start!")
 		return areas
 	}
-	if areas.Previous != "null" && areas.Previous != "" { //maybe a channel could wait to get next 20?
-		last, err := ParseLocationAreas(areas.Next, DataStore)
+	if areas.Previous != "null" && areas.Previous != "" {
+		last, err := ParseLocationAreas(areas.Previous, DataStore)
 		if err != nil {
 			fmt.Printf("%v oopsie when parsing jason", err)
 		}
@@ -151,18 +132,3 @@ func CommandMapB(areas LocationAreaBatch) LocationAreaBatch {
 	fmt.Println("we're back at the start!")
 	return areas
 }
-
-//current ideas - implement concurrency when generating map - store more information
-//write more extensive testing
-
-// if batches.Next != "null" && batches.Next != "" { //maybe a channel could wait to get next 20?
-// 	next, err := ParseLocationAreas(batches.Next, c)
-// 	if err != nil {
-// 		return nil, errors.New("error parsing json")
-// 	}
-// 	JsonDB = append(JsonDB, next...)
-// }
-
-/* READMEhave made the following modifications -> no longer parses entire api tree, should just make requests as needed
-stored global state through package LocationAreaState declaration, implemented untested caching and concurrent elements,
-TODO -> test basic parsing and api traversal, then test caching, then implement concurrency */

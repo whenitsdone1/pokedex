@@ -1,47 +1,59 @@
 package util
 
 import (
+	"fmt"
+	"sync"
 	"time"
 )
 
 type Cache struct {
-	Entries map[string]cacheEntry
-	//	mu sync.Mutex to be used when i implement concurrency
-	Duration int //time in seconds
+	Entries  map[string]cacheEntry
+	mu       sync.RWMutex
+	Duration time.Duration //How fast do we want our cache to refresh?
 }
 type cacheEntry struct {
 	createdAt time.Time
 	val       LocationAreaBatch
 }
 
-func NewCache(duration int) *Cache {
-	CreatedCache := &Cache{Duration: duration}
-	go CreatedCache.reapLoop() //this is gonna cause concurrent read write
+func NewCache(duration time.Duration) *Cache {
+	CreatedCache := &Cache{
+		Entries:  make(map[string]cacheEntry),
+		Duration: duration,
+	}
+	go CreatedCache.reapLoop()
 	return CreatedCache
 }
 
-func (c *Cache) Add(key string, val LocationAreaBatch) { //try as a method
-	c.Entries[key] = cacheEntry{createdAt: time.Now(), val: val} //difference?
+func (c *Cache) Add(key string, val LocationAreaBatch) {
+	c.mu.Lock() //TODO: Understand the concurrent elements of this program more
+	defer c.mu.Unlock()
+	c.Entries[key] = cacheEntry{createdAt: time.Now(), val: val}
 }
 
-func (c *Cache) Get(key string) (cacheEntry, bool) { //returns an entry not just the byte array
-	val, ok := c.Entries[key]
+func (c *Cache) Get(key string) (LocationAreaBatch, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, ok := c.Entries[key]
 	if !ok {
-		var Zero cacheEntry
-		return Zero, false
+		return LocationAreaBatch{}, false
 	}
-	return val, true
+	return entry.val, true
 }
 
-func (c *Cache) reapLoop() { //this might NEED to be concurrent or my programs gonna block right?
-	for {
-		for key, val := range c.Entries {
-			refresh_time := val.createdAt.Add(time.Duration(c.Duration) * time.Second)
-			if val.createdAt.After(refresh_time) {
+func (c *Cache) reapLoop() { //TODO: Make sure I understand why this doesn't block the program; go?
+	ticker := time.NewTicker(time.Duration(c.Duration) / 2)
+	defer ticker.Stop()
+
+	for range ticker.C { //we can write for range like this for channels where we don't need the value
+		c.mu.Lock()
+		now := time.Now()
+		for key, entry := range c.Entries {
+			if now.Sub(entry.createdAt) > time.Duration(c.Duration) {
+				fmt.Println("Deleting old data...")
 				delete(c.Entries, key)
 			}
 		}
+		c.mu.Unlock()
 	}
 }
-
-//time.After?
