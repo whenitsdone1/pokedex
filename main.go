@@ -9,8 +9,7 @@ import (
 )
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin) // pass a reader
-
+	scanner := bufio.NewScanner(os.Stdin) //TODO: Clean up main function
 	commands := util.NewCommandMap()
 	fmt.Print("pokedex > ")
 

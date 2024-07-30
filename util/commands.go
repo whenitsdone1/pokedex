@@ -1,38 +1,24 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var UnknownKeyError error
-
-type Counter struct {
-	Value int
-}
-
-func (c *Counter) Advance() { //global state == bad, how are you meant to do this?
-	c.Value += 20
-}
-func (c *Counter) Recede() {
-	c.Value -= 40 //because we call advance at the end of calling map the pointer ends up 40 places ahead of the previous values we are interested in
-}
-
-var Pointer = &Counter{}
-var InitMap, _ = initMap() //how do we check errors here?
-
-//hold type information and methods
+var LocationAreaState LocationAreaBatch
+var DataStore = NewCache(30 * time.Second) //Set cache duration here
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(map[string]cliCommand) //this is gonna cause problems...
+	callback    func(map[string]cliCommand) //TODO: Refactor this to a more appropriate function signature
 }
 
-func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail prior to compile time
+func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 	commands := map[string]cliCommand{
 		"help": {
 			name:        "help",
@@ -42,17 +28,21 @@ func NewCommandMap() map[string]cliCommand { //this can't fail - it would fail p
 		"exit": {
 			name:        "exit",
 			description: "exit the pokedex",
-			callback:    func(map[string]cliCommand) { CommandExit() }, //anon function that takes required params and calls niladic func
+			callback:    func(map[string]cliCommand) { CommandExit() }, //TODO: Make this hacky stuff not needed
 		},
 		"map": {
 			name:        "map",
 			description: "display the next locations",
-			callback:    func(m map[string]cliCommand) { CommandMap(InitMap) }, //implement
+			callback: func(m map[string]cliCommand) { //implement
+				LocationAreaState = CommandMap(LocationAreaState)
+			},
 		},
 		"mapb": {
 			name:        "map back",
 			description: "display the previous locations",
-			callback:    func(m map[string]cliCommand) { CommandMapB(InitMap) }, //imp
+			callback: func(m map[string]cliCommand) {
+				LocationAreaState = CommandMapB(LocationAreaState)
+			},
 		},
 	}
 
@@ -78,8 +68,8 @@ func SanitizeInput(in string) string {
 	return sanitized
 }
 
-func CommandHelp(commands map[string]cliCommand) { //when do we print the pokedex > thing? somewhere in main?
-	var loopVar int //there's gotta be a more elegant way to do this
+func CommandHelp(commands map[string]cliCommand) {
+	var loopVar int //TODO: Find a less hacky way to do this
 	for _, entry := range commands {
 		if entry.name == "help" {
 			continue
@@ -102,41 +92,43 @@ func HandleUnknownKeys(in string) {
 	fmt.Printf("%s is not a recognised command, please try again", in)
 }
 
-func initMap() ([]LocationArea, error) {
-	InitalMap, err := ParseLocationAreas(LocationAreaApiUrl)
+func CommandMap(areas LocationAreaBatch) LocationAreaBatch {
+	url := LocationAreaApiUrl //? are we setting the target URL to the start everytime? TODO: Understand this better
+	if areas.Next != "" {
+		url = areas.Next
+	}
+
+	next, err := ParseLocationAreas(url, DataStore)
 	if err != nil {
-		return nil, errors.New("error parsing json")
+		return LocationAreaBatch{}
 	}
-	return InitalMap, nil
+
+	for _, area := range next.Results {
+		fmt.Println(area.Name)
+	}
+
+	if next.Next == "" {
+		fmt.Println("You've reached the end of the world, we can't go any further!")
+	}
+
+	return next
 }
 
-func CommandMap(areas []LocationArea) {
-	if Pointer.Value >= len(InitMap) {
-		fmt.Println("you've reached the end of the world, we can't go any further!")
-		return
+func CommandMapB(areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and make sure refactoring is not needed here
+	if areas.Previous == "null" || areas.Previous == "" {
+		fmt.Println("we're still at the start!")
+		return areas
 	}
-	for i := Pointer.Value; i < Pointer.Value+20; i++ {
-		fmt.Println(areas[i].Name)
+	if areas.Previous != "null" && areas.Previous != "" {
+		last, err := ParseLocationAreas(areas.Previous, DataStore)
+		if err != nil {
+			fmt.Printf("%v oopsie when parsing jason", err)
+		}
+		for i := range last.Results {
+			fmt.Println(last.Results[i].Name)
+		}
+		return last
 	}
-	if (Pointer.Value + 20) < len(InitMap) {
-		Pointer.Advance()
-	}
+	fmt.Println("we're back at the start!")
+	return areas
 }
-
-func CommandMapB(areas []LocationArea) {
-	if Pointer.Value == 0 {
-		fmt.Println("we're back at the start!")
-		return
-	}
-	if (Pointer.Value - 20) <= 0 { //handle index error in the negative case
-		Pointer.Value = 0
-	} else {
-		Pointer.Recede()
-	}
-	for i := Pointer.Value; i < Pointer.Value+20; i++ {
-		fmt.Println(areas[i].Name)
-	}
-}
-
-//current ideas - implement concurrency when generating map - store more information
-//write more extensive testing
