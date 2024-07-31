@@ -15,7 +15,7 @@ var DataStore = NewCache(30 * time.Second) //Set cache duration here
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(map[string]cliCommand) //TODO: Refactor this to a more appropriate function signature
+	callback    func(args []string, cmd map[string]cliCommand) //TODO: Refactor this to a more appropriate function signature
 }
 
 func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
@@ -28,20 +28,27 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 		"exit": {
 			name:        "exit",
 			description: "exit the pokedex",
-			callback:    func(map[string]cliCommand) { CommandExit() }, //TODO: Make this hacky stuff not needed
+			callback:    func(args []string, cmd map[string]cliCommand) { CommandExit() }, //TODO: Make this hacky stuff not needed
 		},
 		"map": {
 			name:        "map",
 			description: "display the next locations",
-			callback: func(m map[string]cliCommand) { //implement
-				LocationAreaState = CommandMap(LocationAreaState)
+			callback: func(args []string, m map[string]cliCommand) { //implement
+				LocationAreaState = CommandMap(args, LocationAreaState)
 			},
 		},
 		"mapb": {
 			name:        "map back",
 			description: "display the previous locations",
-			callback: func(m map[string]cliCommand) {
-				LocationAreaState = CommandMapB(LocationAreaState)
+			callback: func(args []string, cmd map[string]cliCommand) {
+				LocationAreaState = CommandMapB(args, LocationAreaState)
+			},
+		},
+		"explore": {
+			name:        "explore",
+			description: "look for pokemon!",
+			callback: func(args []string, cmd map[string]cliCommand) {
+				CommandExplore(args, LocationAreaState)
 			},
 		},
 	}
@@ -49,13 +56,14 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 	return commands
 }
 
-func ParseCommand(in string, commands map[string]cliCommand) {
-	command, ok := commands[SanitizeInput(in)] //clean and check if the input exists
+func ParseCommand(in []string, commands map[string]cliCommand) []string { //?
+	command, ok := commands[SanitizeInput(in[0])] //clean and check if the input exists
 	if !ok {
-		HandleUnknownKeys(in)
+		HandleUnknownKeys(in[0])
 	} else {
-		command.callback(commands)
+		command.callback(in, commands)
 	}
+	return in
 }
 
 func SanitizeInput(in string) string {
@@ -68,7 +76,7 @@ func SanitizeInput(in string) string {
 	return sanitized
 }
 
-func CommandHelp(commands map[string]cliCommand) {
+func CommandHelp(args []string, commands map[string]cliCommand) {
 	var loopVar int //TODO: Find a less hacky way to do this
 	for _, entry := range commands {
 		if entry.name == "help" {
@@ -92,7 +100,7 @@ func HandleUnknownKeys(in string) {
 	fmt.Printf("%s is not a recognised command, please try again", in)
 }
 
-func CommandMap(areas LocationAreaBatch) LocationAreaBatch {
+func CommandMap(args []string, areas LocationAreaBatch) LocationAreaBatch {
 	url := LocationAreaApiUrl //? are we setting the target URL to the start everytime? TODO: Understand this better
 	if areas.Next != "" {
 		url = areas.Next
@@ -114,7 +122,7 @@ func CommandMap(areas LocationAreaBatch) LocationAreaBatch {
 	return next
 }
 
-func CommandMapB(areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and make sure refactoring is not needed here
+func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and make sure refactoring is not needed here
 	if areas.Previous == "null" || areas.Previous == "" {
 		fmt.Println("we're still at the start!")
 		return areas
@@ -131,4 +139,37 @@ func CommandMapB(areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and m
 	}
 	fmt.Println("we're back at the start!")
 	return areas
+}
+
+func CommandExplore(args []string, area LocationAreaBatch) { //todo: implement caching
+	if len(args) == 1 {
+		fmt.Println("where should we explore?")
+		return
+	}
+	arg := SanitizeInput(args[1]) //should be the name of a location
+	if len(LocationAreaState.Results) == 0 {
+		fmt.Println("we need to start exploring to catch pokemon!")
+		return
+	}
+	for _, v := range LocationAreaState.Results {
+		sanitizedName := SanitizeInput(v.Name)
+		// fmt.Printf("Comparing: %s with %s\n", arg, sanitizedName)
+		// fmt.Println(arg)
+		// fmt.Printf("%v\n", SanitizeInput(v.Name))
+		if arg == sanitizedName {
+			locations, _ := ParseLocations(v.Url, DataStore)
+			ordered := ExtractNames(locations)
+			if len(ordered) == 0 {
+				fmt.Println("didn't find any pokemon :(")
+				return
+			}
+			fmt.Println("found pokemon:")
+			for i := range ordered {
+				fmt.Println("-" + ordered[i])
+			}
+
+		}
+
+	}
+
 }

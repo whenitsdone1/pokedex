@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/whenitsdone1/pokedex/util"
 )
@@ -18,7 +19,8 @@ func main() {
 		if scanner.Scan() {
 			input := scanner.Text()
 			sanitized := util.SanitizeInput(input)
-			util.ParseCommand(sanitized, commands)
+			entered := strings.Fields(sanitized)
+			util.ParseCommand(entered, commands)
 			fmt.Print("\npokedex > ")
 		} else {
 			if err := scanner.Err(); err != nil {

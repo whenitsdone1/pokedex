@@ -51,3 +51,19 @@ func TestCache(t *testing.T) { //TODO: Implement better test coverage
 		fmt.Printf("First location area: %s\n", value.val.Results[0].Name)
 	}
 }
+
+func TestLocationParsing(t *testing.T) {
+	t.Run("Do we get anything?", func(t *testing.T) {
+		try, catch := ParseLocations("https://pokeapi.co/api/v2/location-area/2/", DataStore)
+		if catch != nil {
+			t.Errorf("Caught %v", catch)
+
+		}
+		for _, e := range try {
+			fmt.Printf("- %s\n", e.Name)
+			fmt.Printf("@ %s\n", e.Url)
+		}
+		j := ExtractNames(try)
+		fmt.Print(j)
+	})
+}
