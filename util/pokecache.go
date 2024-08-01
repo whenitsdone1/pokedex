@@ -13,7 +13,7 @@ type Cache struct {
 }
 type cacheEntry struct {
 	createdAt time.Time
-	val       LocationAreaBatch
+	val       any //TODO change this to an interface
 }
 
 func NewCache(duration time.Duration) *Cache {
@@ -25,18 +25,18 @@ func NewCache(duration time.Duration) *Cache {
 	return CreatedCache
 }
 
-func (c *Cache) Add(key string, val LocationAreaBatch) {
+func (c *Cache) Add(key string, val any) {
 	c.mu.Lock() //TODO: Understand the concurrent elements of this program more
 	defer c.mu.Unlock()
 	c.Entries[key] = cacheEntry{createdAt: time.Now(), val: val}
 }
 
-func (c *Cache) Get(key string) (LocationAreaBatch, bool) {
+func (c *Cache) Get(key string) (any, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	entry, ok := c.Entries[key]
 	if !ok {
-		return LocationAreaBatch{}, false
+		return nil, false
 	}
 	return entry.val, true
 }

@@ -21,7 +21,7 @@ func main() {
 			sanitized := util.SanitizeInput(input)
 			entered := strings.Fields(sanitized)
 			util.ParseCommand(entered, commands)
-			fmt.Print("\npokedex > ")
+			fmt.Print("pokedex > ")
 		} else {
 			if err := scanner.Err(); err != nil {
 				fmt.Fprintln(os.Stderr, "error reading input", err)

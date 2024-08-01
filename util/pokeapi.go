@@ -62,7 +62,12 @@ func GetJson(toParse string) ([]byte, error) {
 func ParseLocationAreas(toParse string, c *Cache) (LocationAreaBatch, error) { //we need to update next and previous, so need to return LocationAreaBatch
 	if val, ok := c.Get(toParse); ok {
 		fmt.Println("Using the cache!")
-		return val, nil
+		parsed, ok := val.(LocationAreaBatch)
+		if ok {
+			return parsed, nil
+		} else {
+			return LocationAreaBatch{}, fmt.Errorf("FATAL: expected LocationAreaBatch object recieved other type")
+		}
 	}
 	fmt.Println("Could not get from Cache, fetching...")
 	Json, err := GetJson(toParse)
@@ -101,11 +106,14 @@ func getNumber(x string) string { //retrieve the number of the location area fro
 }
 
 func ParseLocations(toParse string, c *Cache) ([]Pokemon, error) { //we need to update next and previous, so need to return LocationAreaBatch
-	// if val, ok := c.Get(toParse); ok { TODO: Implement Caching
-	// 	fmt.Println("Using the cache!")
-	// 	return val, nil
-	// }
-	// fmt.Println("Could not get from Cache, fetching...")
+	if val, ok := c.Get(toParse); ok {
+		fmt.Println("Using the cache!")
+		parsed, ok := val.([]Pokemon)
+		if ok {
+			return parsed, nil
+		}
+	}
+	fmt.Println("Could not get from Cache, fetching...")
 	Json, err := GetJson(toParse)
 	if err != nil {
 		return []Pokemon{}, err
@@ -121,6 +129,7 @@ func ParseLocations(toParse string, c *Cache) ([]Pokemon, error) { //we need to 
 	for _, p := range Detail.PokemonEncounters {
 		Pokemon = append(Pokemon, p.Pokemon)
 	}
+	c.Add(toParse, Pokemon)
 	return Pokemon, nil
 }
 

@@ -38,7 +38,7 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 			},
 		},
 		"mapb": {
-			name:        "map back",
+			name:        "mapb",
 			description: "display the previous locations",
 			callback: func(args []string, cmd map[string]cliCommand) {
 				LocationAreaState = CommandMapB(args, LocationAreaState)
@@ -57,6 +57,10 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 }
 
 func ParseCommand(in []string, commands map[string]cliCommand) []string { //?
+	if len(in) == 0 {
+		fmt.Println("enter a command to start!")
+		return nil
+	}
 	command, ok := commands[SanitizeInput(in[0])] //clean and check if the input exists
 	if !ok {
 		HandleUnknownKeys(in[0])
@@ -97,7 +101,7 @@ func CommandExit() {
 }
 
 func HandleUnknownKeys(in string) {
-	fmt.Printf("%s is not a recognised command, please try again", in)
+	fmt.Printf("%s is not a recognised command, please try again\n", in)
 }
 
 func CommandMap(args []string, areas LocationAreaBatch) LocationAreaBatch {
@@ -141,7 +145,7 @@ func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch { //T
 	return areas
 }
 
-func CommandExplore(args []string, area LocationAreaBatch) { //todo: implement caching
+func CommandExplore(args []string, area LocationAreaBatch) {
 	if len(args) == 1 {
 		fmt.Println("where should we explore?")
 		return
@@ -151,11 +155,10 @@ func CommandExplore(args []string, area LocationAreaBatch) { //todo: implement c
 		fmt.Println("we need to start exploring to catch pokemon!")
 		return
 	}
+
 	for _, v := range LocationAreaState.Results {
+		raw_name := v.Name
 		sanitizedName := SanitizeInput(v.Name)
-		// fmt.Printf("Comparing: %s with %s\n", arg, sanitizedName)
-		// fmt.Println(arg)
-		// fmt.Printf("%v\n", SanitizeInput(v.Name))
 		if arg == sanitizedName {
 			locations, _ := ParseLocations(v.Url, DataStore)
 			ordered := ExtractNames(locations)
@@ -163,13 +166,13 @@ func CommandExplore(args []string, area LocationAreaBatch) { //todo: implement c
 				fmt.Println("didn't find any pokemon :(")
 				return
 			}
+			fmt.Printf("exploring %s:\n", raw_name)
 			fmt.Println("found pokemon:")
 			for i := range ordered {
 				fmt.Println("-" + ordered[i])
 			}
-
+			return
 		}
-
 	}
-
+	fmt.Println("hmm coudn't find that location")
 }
