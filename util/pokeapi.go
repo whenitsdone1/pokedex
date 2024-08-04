@@ -13,36 +13,98 @@ import (
 	"strings"
 )
 
+const (
+	LocationAreaApiUrl = "https://pokeapi.co/api/v2/location-area"
+)
+
 type LocationAreaBatch struct {
 	Next     string         `json:"next"`
 	Results  []LocationArea `json:"results"`
 	Previous string         `json:"previous"`
 }
-
 type Parseable interface {
-	Pokemon
-	LocationArea
+	Parse(data []byte) error
 }
-
-const (
-	LocationAreaApiUrl = "https://pokeapi.co/api/v2/location-area"
-	//LocationApiUrl     = "https://pokeapi.co/api/v2/location/" - not needed yet
-)
-
 type LocationArea struct {
-	Name string `json:"name"` //will capture more information as needed
+	Name string `json:"name"`
 	Url  string `json:"url"`
 }
-
+type Pokemon struct {
+	Name string `json:"name"`
+	Url  string `json:"url"`
+}
 type PokemonDetails struct {
 	PokemonEncounters []struct {
 		Pokemon Pokemon `json:"pokemon"`
 	} `json:"pokemon_encounters"`
 }
 
-type Pokemon struct {
-	Name string `json:"name"`
-	Url  string `json:"url"`
+func Parse[T Parseable](url string, cache *Cache) (T, error) {
+	var item T
+	if val, ok := cache.Get(url); ok {
+		fmt.Println("found in cache, retrieving...")
+		parsed, ok := val.(T)
+		if ok {
+			return parsed, nil
+		}
+	}
+	fmt.Println("not found in cache, hitting api..")
+	jsonData, err := GetJson(url)
+	if err != nil {
+		return item, fmt.Errorf("error fetching data: %w", err)
+	}
+
+	switch any(item).(type) { //convert the nil value T to a concrete instance of the appropiate struct, allows our .parse methods to function correctly
+	case *LocationAreaBatch:
+		item = any(&LocationAreaBatch{}).(T)
+	case *PokemonDetails:
+		item = any(&PokemonDetails{}).(T)
+	default:
+		return item, fmt.Errorf("unsupported type for parsing")
+	}
+	err = item.Parse(jsonData)
+	if err != nil {
+		return item, fmt.Errorf("error parsing data: %w", err)
+	}
+	cache.Add(url, item)
+	return item, nil
+}
+
+func (l *LocationAreaBatch) Parse(data []byte) error {
+	err := json.Unmarshal(data, l)
+	if err != nil {
+		return nil
+	}
+	slices.SortFunc(l.Results, CompareLocations)
+	return nil
+}
+
+func (p *PokemonDetails) Parse(data []byte) error {
+	return json.Unmarshal(data, p)
+}
+
+func ParseLocationAreas(toParse string, cache *Cache) (LocationAreaBatch, error) {
+	result, err := Parse[*LocationAreaBatch](toParse, cache)
+	if err != nil {
+		return LocationAreaBatch{}, err
+	}
+	if result == nil {
+		return LocationAreaBatch{}, fmt.Errorf("error parsing result %v", err)
+	}
+	return *result, nil
+}
+
+func ParseLocations(toParse string, cache *Cache) ([]Pokemon, error) {
+	result, err := Parse[*PokemonDetails](toParse, cache)
+	if err != nil {
+		return nil, err
+	}
+	var pokemon []Pokemon
+	details := *result
+	for _, p := range details.PokemonEncounters {
+		pokemon = append(pokemon, p.Pokemon)
+	}
+	return pokemon, nil
 }
 
 func GetJson(toParse string) ([]byte, error) {
@@ -51,7 +113,6 @@ func GetJson(toParse string) ([]byte, error) {
 		return nil, errors.New("error making get request")
 	}
 	defer response.Body.Close()
-
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, errors.New("error reading body")
@@ -59,36 +120,7 @@ func GetJson(toParse string) ([]byte, error) {
 	return body, nil
 }
 
-func ParseLocationAreas(toParse string, c *Cache) (LocationAreaBatch, error) { //we need to update next and previous, so need to return LocationAreaBatch
-	if val, ok := c.Get(toParse); ok {
-		fmt.Println("Using the cache!")
-		parsed, ok := val.(LocationAreaBatch)
-		if ok {
-			return parsed, nil
-		} else {
-			return LocationAreaBatch{}, fmt.Errorf("FATAL: expected LocationAreaBatch object recieved other type")
-		}
-	}
-	fmt.Println("Could not get from Cache, fetching...")
-	Json, err := GetJson(toParse)
-	if err != nil {
-		return LocationAreaBatch{}, err
-	}
-	var batches LocationAreaBatch
-	err = json.Unmarshal(Json, &batches)
-
-	if err != nil {
-		return LocationAreaBatch{}, errors.New("error parsing json")
-	}
-
-	slices.SortFunc(batches.Results, CompareLocations)
-	c.Add(toParse, batches) // add to cache
-	fmt.Println("Adding to cache..")
-	return batches, nil
-
-}
-
-func CompareLocations(x, y LocationArea) int { //comparison function
+func CompareLocations(x, y LocationArea) int {
 	a, errA := strconv.Atoi(getNumber(x.Url))
 	if errA != nil {
 		log.Fatal("error in parsing of URLs")
@@ -103,34 +135,6 @@ func getNumber(x string) string { //retrieve the number of the location area fro
 	x = strings.TrimPrefix(x, "https://pokeapi.co/api/v2/location-area/")
 	x = strings.TrimSuffix(x, "/")
 	return x
-}
-
-func ParseLocations(toParse string, c *Cache) ([]Pokemon, error) { //we need to update next and previous, so need to return LocationAreaBatch
-	if val, ok := c.Get(toParse); ok {
-		fmt.Println("Using the cache!")
-		parsed, ok := val.([]Pokemon)
-		if ok {
-			return parsed, nil
-		}
-	}
-	fmt.Println("Could not get from Cache, fetching...")
-	Json, err := GetJson(toParse)
-	if err != nil {
-		return []Pokemon{}, err
-	}
-
-	var Detail PokemonDetails
-	err = json.Unmarshal(Json, &Detail) //problematic line
-	if err != nil {
-		zero := []Pokemon{}
-		return zero, errors.New("error parsing json")
-	}
-	var Pokemon []Pokemon
-	for _, p := range Detail.PokemonEncounters {
-		Pokemon = append(Pokemon, p.Pokemon)
-	}
-	c.Add(toParse, Pokemon)
-	return Pokemon, nil
 }
 
 func ExtractNames(p []Pokemon) []string {

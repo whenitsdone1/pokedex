@@ -10,15 +10,16 @@ import (
 
 var UnknownKeyError error
 var LocationAreaState LocationAreaBatch
-var DataStore = NewCache(30 * time.Second) //Set cache duration here
+var DataStore = NewCache(10 * time.Second) //Set cache duration here
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(args []string, cmd map[string]cliCommand) //TODO: Refactor this to a more appropriate function signature
+	callback    func(args []string, cmd map[string]cliCommand)
 }
 
-func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
+func NewCommandMap() map[string]cliCommand {
+	//closures match the function signatures with the signature outlined in callback
 	commands := map[string]cliCommand{
 		"help": {
 			name:        "help",
@@ -28,12 +29,12 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 		"exit": {
 			name:        "exit",
 			description: "exit the pokedex",
-			callback:    func(args []string, cmd map[string]cliCommand) { CommandExit() }, //TODO: Make this hacky stuff not needed
+			callback:    func(args []string, cmd map[string]cliCommand) { CommandExit() },
 		},
 		"map": {
 			name:        "map",
 			description: "display the next locations",
-			callback: func(args []string, m map[string]cliCommand) { //implement
+			callback: func(args []string, m map[string]cliCommand) {
 				LocationAreaState = CommandMap(args, LocationAreaState)
 			},
 		},
@@ -52,11 +53,10 @@ func NewCommandMap() map[string]cliCommand { //Does this need to be a function ?
 			},
 		},
 	}
-
 	return commands
 }
 
-func ParseCommand(in []string, commands map[string]cliCommand) []string { //?
+func ParseCommand(in []string, commands map[string]cliCommand) []string { //handle commans
 	if len(in) == 0 {
 		fmt.Println("enter a command to start!")
 		return nil
@@ -71,7 +71,7 @@ func ParseCommand(in []string, commands map[string]cliCommand) []string { //?
 }
 
 func SanitizeInput(in string) string {
-	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`) //we need to clean the input prior to parsing
+	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`) //forbidden characters
 	cleansed_in := func(in string) string {
 		return nonAlphanumericRegex.ReplaceAllString(in, "")
 	}(in)
@@ -81,15 +81,14 @@ func SanitizeInput(in string) string {
 }
 
 func CommandHelp(args []string, commands map[string]cliCommand) {
-	var loopVar int //TODO: Find a less hacky way to do this
+	var loopVar int
 	for _, entry := range commands {
 		if entry.name == "help" {
 			continue
 		}
 		if loopVar < len(commands)-1 {
 			fmt.Printf("%v - %v\n", entry.name, entry.description)
-			loopVar++
-		} else {
+		} else { //don't create an extra new line on the last iteration
 			fmt.Printf("%v - %v", entry.name, entry.description)
 		}
 	}
@@ -105,11 +104,10 @@ func HandleUnknownKeys(in string) {
 }
 
 func CommandMap(args []string, areas LocationAreaBatch) LocationAreaBatch {
-	url := LocationAreaApiUrl //? are we setting the target URL to the start everytime? TODO: Understand this better
-	if areas.Next != "" {
-		url = areas.Next
+	url := LocationAreaApiUrl //set the url to the first page
+	if areas.Next != "" {     //if the areas argument to this function has a next (i.e: if we are not at the start)
+		url = areas.Next //use the next url
 	}
-
 	next, err := ParseLocationAreas(url, DataStore)
 	if err != nil {
 		return LocationAreaBatch{}
@@ -122,11 +120,10 @@ func CommandMap(args []string, areas LocationAreaBatch) LocationAreaBatch {
 	if next.Next == "" {
 		fmt.Println("You've reached the end of the world, we can't go any further!")
 	}
-
 	return next
 }
 
-func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch { //TODO: Test and make sure refactoring is not needed here
+func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch {
 	if areas.Previous == "null" || areas.Previous == "" {
 		fmt.Println("we're still at the start!")
 		return areas
@@ -150,6 +147,7 @@ func CommandExplore(args []string, area LocationAreaBatch) {
 		fmt.Println("where should we explore?")
 		return
 	}
+	in := args[1]
 	arg := SanitizeInput(args[1]) //should be the name of a location
 	if len(LocationAreaState.Results) == 0 {
 		fmt.Println("we need to start exploring to catch pokemon!")
@@ -174,5 +172,5 @@ func CommandExplore(args []string, area LocationAreaBatch) {
 			return
 		}
 	}
-	fmt.Println("hmm coudn't find that location")
+	fmt.Printf("invalid location: %s entered\n", in)
 }

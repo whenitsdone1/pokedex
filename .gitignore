@@ -1,3 +1,5 @@
 key.*
 key.md
 key.md.pub
+.gitignore
+main
