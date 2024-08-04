@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 var UnknownKeyError error
 var LocationAreaState LocationAreaBatch
 var DataStore = NewCache(10 * time.Second) //Set cache duration here
+var AvailablePokemon []string
 
 type cliCommand struct {
 	name        string
@@ -49,7 +51,14 @@ func NewCommandMap() map[string]cliCommand {
 			name:        "explore",
 			description: "look for pokemon!",
 			callback: func(args []string, cmd map[string]cliCommand) {
-				CommandExplore(args, LocationAreaState)
+				AvailablePokemon = CommandExplore(args, LocationAreaState)
+			},
+		},
+		"catch": {
+			name:        "catch",
+			description: "try to catch the pokemeon!",
+			callback: func(args []string, cmd map[string]cliCommand) {
+				CommandCatch(args, LocationAreaState) //implement
 			},
 		},
 	}
@@ -142,16 +151,16 @@ func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch {
 	return areas
 }
 
-func CommandExplore(args []string, area LocationAreaBatch) {
+func CommandExplore(args []string, area LocationAreaBatch) []string {
 	if len(args) == 1 {
 		fmt.Println("where should we explore?")
-		return
+		return nil
 	}
 	in := args[1]
 	arg := SanitizeInput(args[1]) //should be the name of a location
 	if len(LocationAreaState.Results) == 0 {
 		fmt.Println("we need to start exploring to catch pokemon!")
-		return
+		return nil
 	}
 
 	for _, v := range LocationAreaState.Results {
@@ -162,15 +171,35 @@ func CommandExplore(args []string, area LocationAreaBatch) {
 			ordered := ExtractNames(locations)
 			if len(ordered) == 0 {
 				fmt.Println("didn't find any pokemon :(")
-				return
+				return nil
 			}
 			fmt.Printf("exploring %s:\n", raw_name)
 			fmt.Println("found pokemon:")
 			for i := range ordered {
 				fmt.Println("-" + ordered[i])
 			}
-			return
+			return ordered
 		}
 	}
 	fmt.Printf("invalid location: %s entered\n", in)
+	return nil
 }
+
+func CommandCatch(args []string, area LocationAreaBatch) {
+	pokemon := strings.TrimSpace(strings.ToLower(args[1]))
+	for _, v := range AvailablePokemon {
+		if v == pokemon {
+			fmt.Printf("throwing a pokeball at %v\n", pokemon)
+			chance := rand.Intn(10) + 1
+			time.Sleep(1 * time.Second)
+			if chance >= 5 {
+				fmt.Printf("%v was caught!\n", pokemon)
+				return
+			} else {
+				fmt.Printf("%v got away!\n", pokemon)
+				return
+			}
+		}
+	}
+	fmt.Println("that pokemon isn't around here...")
+} //TODO here: parse required pokemon information, store information in appropiate struct, factor in base experience to odds of catching

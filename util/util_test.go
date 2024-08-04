@@ -69,3 +69,8 @@ func TestLocationParsing(t *testing.T) {
 		fmt.Print(j)
 	})
 }
+
+func TestPokemonUtilities(t *testing.T) { //TODO: implement
+	t.Run("print out required text", func(t *testing.T) {
+	})
+}
