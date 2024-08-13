@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"log"
 	"testing"
 	"time"
 )
@@ -70,7 +71,17 @@ func TestLocationParsing(t *testing.T) {
 	})
 }
 
-func TestPokemonUtilities(t *testing.T) { //TODO: implement
-	t.Run("print out required text", func(t *testing.T) {
-	})
+func TestPokemonUtilities(t *testing.T) { //TODO: implement    cache := NewCache() // Assuming you have a cache implementation
+	cache := NewCache(5 * time.Second)
+	pokemonURL := "https://pokeapi.co/api/v2/pokemon/1/" // URL for Bulbasaur
+
+	pokeInfo, err := ParsePokedexDetails(pokemonURL, cache)
+	if err != nil {
+		log.Fatalf("Error parsing Pokemon details: %v", err)
+	}
+	types := pokeInfo.GetTypes()
+	for _, v := range types {
+		fmt.Println(v)
+	}
+	DisplayPokemonInformation(pokeInfo)
 }

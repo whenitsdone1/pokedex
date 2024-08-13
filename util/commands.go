@@ -189,6 +189,7 @@ func CommandCatch(args []string, area LocationAreaBatch) {
 	pokemon := strings.TrimSpace(strings.ToLower(args[1]))
 	for _, v := range AvailablePokemon {
 		if v == pokemon {
+			pokeInfo, err := ParsePokedexDetails(pokemon.Url, cache)
 			fmt.Printf("throwing a pokeball at %v\n", pokemon)
 			chance := rand.Intn(10) + 1
 			time.Sleep(1 * time.Second)
@@ -202,4 +203,6 @@ func CommandCatch(args []string, area LocationAreaBatch) {
 		}
 	}
 	fmt.Println("that pokemon isn't around here...")
-} //TODO here: parse required pokemon information, store information in appropiate struct, factor in base experience to odds of catching
+}
+
+//TODO: implement random chance of catching using base experience, implement inspect command, implement pokedex command

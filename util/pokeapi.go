@@ -38,6 +38,56 @@ type PokemonDetails struct {
 		Pokemon Pokemon `json:"pokemon"`
 	} `json:"pokemon_encounters"`
 }
+type PokeDexInformation struct {
+	Exp    int `json:"base_experience"`
+	Weight int `json:"weight"`
+	Height int `json:"height"`
+	Forms  []struct {
+		Name string `json:"name"`
+	} `json:"forms"`
+	Stats []struct {
+		BaseStat int `json:"base_stat"`
+		Stat     struct {
+			Name string `json:"name"`
+		} `json:"stat"`
+	} `json:"stats"`
+	Types []struct {
+		Type struct {
+			Name string `json:"name"`
+		} `json:"type"`
+	} `json:"types"`
+}
+
+func (p *PokeDexInformation) GetStatsMap() map[string]int {
+	stats := make(map[string]int)
+	for _, stat := range p.Stats {
+		stats[stat.Stat.Name] = stat.BaseStat
+	}
+	return stats
+}
+
+func (p *PokeDexInformation) Parse(data []byte) error {
+	return json.Unmarshal(data, p)
+}
+
+func (p *PokeDexInformation) GetTypes() []string {
+	var types []string
+	for _, t := range p.Types {
+		types = append(types, t.Type.Name)
+	}
+	return types
+}
+
+func ParsePokedexDetails(url string, cache *Cache) (PokeDexInformation, error) {
+	result, err := Parse[*PokeDexInformation](url, cache)
+	if err != nil {
+		return PokeDexInformation{}, err
+	}
+	if result == nil {
+		return PokeDexInformation{}, fmt.Errorf("error parsing result %v", err)
+	}
+	return *result, nil
+}
 
 func Parse[T Parseable](url string, cache *Cache) (T, error) {
 	var item T
@@ -59,6 +109,8 @@ func Parse[T Parseable](url string, cache *Cache) (T, error) {
 		item = any(&LocationAreaBatch{}).(T)
 	case *PokemonDetails:
 		item = any(&PokemonDetails{}).(T)
+	case *PokeDexInformation:
+		item = any(&PokeDexInformation{}).(T)
 	default:
 		return item, fmt.Errorf("unsupported type for parsing")
 	}
@@ -146,4 +198,24 @@ func ExtractNames(p []Pokemon) []string {
 		return cmp.Compare(strings.ToLower(a), strings.ToLower(b))
 	})
 	return toCompare
+}
+
+func DisplayPokemonInformation(p PokeDexInformation) {
+	fmt.Printf("Name: %v\n", p.Forms[0].Name)
+	fmt.Printf("Height: %v\n", p.Height)
+	fmt.Printf("Weight: %v\n", p.Weight)
+	fmt.Printf("Stats:\n")
+	stats := p.GetStatsMap()
+	fmt.Printf("-hp: %v\n", stats["hp"])
+	fmt.Printf("-attack: %v\n", stats["attack"])
+	fmt.Printf("-defense: %v\n", stats["defense"])
+	fmt.Printf("-special-attack: %v\n", stats["special-attack"])
+	fmt.Printf("-special-defense: %v\n", stats["special-defense"])
+	fmt.Printf("-speed: %v\n", stats["speed"])
+	fmt.Printf("-Types:\n")
+	types := p.GetTypes()
+	fmt.Printf("- %v\n", types[0])
+	if len(types) == 2 {
+		fmt.Printf("- %v", types[1])
+	}
 }
