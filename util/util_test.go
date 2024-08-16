@@ -22,7 +22,7 @@ func TestParseLocationAreas(t *testing.T) {
 		fmt.Println(len(locations.Results))
 	})
 }
-func TestCache(t *testing.T) { //TODO: Implement better test coverage
+func TestCache(t *testing.T) {
 	Check := NewCache(100 * time.Hour)
 	baseURL := "https://pokeapi.co/api/v2/location-area"
 
@@ -71,9 +71,9 @@ func TestLocationParsing(t *testing.T) {
 	})
 }
 
-func TestPokemonUtilities(t *testing.T) { //TODO: implement    cache := NewCache() // Assuming you have a cache implementation
+func TestPokemonUtilities(t *testing.T) {
 	cache := NewCache(5 * time.Second)
-	pokemonURL := "https://pokeapi.co/api/v2/pokemon/1/" // URL for Bulbasaur
+	pokemonURL := "https://pokeapi.co/api/v2/pokemon/1/"
 
 	pokeInfo, err := ParsePokedexDetails(pokemonURL, cache)
 	if err != nil {

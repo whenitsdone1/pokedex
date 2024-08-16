@@ -8,7 +8,7 @@ import (
 type Cache struct {
 	Entries  map[string]cacheEntry
 	mu       sync.RWMutex
-	Duration time.Duration //How fast do we want our cache to refresh?
+	Duration time.Duration //cache refresh rate
 }
 type cacheEntry struct {
 	createdAt time.Time

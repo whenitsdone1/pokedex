@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"slices"
 	"strconv"
@@ -216,6 +217,24 @@ func DisplayPokemonInformation(p PokeDexInformation) {
 	types := p.GetTypes()
 	fmt.Printf("- %v\n", types[0])
 	if len(types) == 2 {
-		fmt.Printf("- %v", types[1])
+		fmt.Printf("- %v\n", types[1])
 	}
+}
+
+func (p *PokeDexInformation) CatchChance() bool {
+	clamp := func(x int) int {
+		max := 60 //set max to 60 rather than natural 99 to make catching pokemon easier
+		min := 1
+		if x > max {
+			return max
+		}
+		if x < min {
+			return min
+		}
+		return x
+	}
+	chance := clamp(p.Exp)
+	probability := 1.0 - float64(chance)/100.0
+	rand := rand.Float64()
+	return rand < probability
 }

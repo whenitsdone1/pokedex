@@ -2,7 +2,6 @@ package util
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"regexp"
 	"strings"
@@ -12,7 +11,9 @@ import (
 var UnknownKeyError error
 var LocationAreaState LocationAreaBatch
 var DataStore = NewCache(10 * time.Second) //Set cache duration here
-var AvailablePokemon []string
+var PokemonNames []string
+var AvailablePokemon []Pokemon
+var Pokedex = make(map[string]PokeDexInformation)
 
 type cliCommand struct {
 	name        string
@@ -51,14 +52,28 @@ func NewCommandMap() map[string]cliCommand {
 			name:        "explore",
 			description: "look for pokemon!",
 			callback: func(args []string, cmd map[string]cliCommand) {
-				AvailablePokemon = CommandExplore(args, LocationAreaState)
+				PokemonNames, AvailablePokemon = CommandExplore(args, LocationAreaState)
 			},
 		},
 		"catch": {
 			name:        "catch",
 			description: "try to catch the pokemeon!",
 			callback: func(args []string, cmd map[string]cliCommand) {
-				CommandCatch(args, LocationAreaState) //implement
+				CommandCatch(args, AvailablePokemon) //implement
+			},
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "inspect pokemon that you have captured",
+			callback: func(args []string, cmd map[string]cliCommand) {
+				CommandInspect(args)
+			},
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "view your pokedex",
+			callback: func(args []string, cmd map[string]cliCommand) {
+				CommandPokedex(args)
 			},
 		},
 	}
@@ -151,16 +166,16 @@ func CommandMapB(args []string, areas LocationAreaBatch) LocationAreaBatch {
 	return areas
 }
 
-func CommandExplore(args []string, area LocationAreaBatch) []string {
+func CommandExplore(args []string, area LocationAreaBatch) ([]string, []Pokemon) {
 	if len(args) == 1 {
 		fmt.Println("where should we explore?")
-		return nil
+		return nil, nil
 	}
 	in := args[1]
 	arg := SanitizeInput(args[1]) //should be the name of a location
 	if len(LocationAreaState.Results) == 0 {
 		fmt.Println("we need to start exploring to catch pokemon!")
-		return nil
+		return nil, nil
 	}
 
 	for _, v := range LocationAreaState.Results {
@@ -171,30 +186,35 @@ func CommandExplore(args []string, area LocationAreaBatch) []string {
 			ordered := ExtractNames(locations)
 			if len(ordered) == 0 {
 				fmt.Println("didn't find any pokemon :(")
-				return nil
+				return nil, nil
 			}
 			fmt.Printf("exploring %s:\n", raw_name)
 			fmt.Println("found pokemon:")
 			for i := range ordered {
 				fmt.Println("-" + ordered[i])
 			}
-			return ordered
+			return ordered, locations
 		}
 	}
 	fmt.Printf("invalid location: %s entered\n", in)
-	return nil
+	return nil, nil
 }
 
-func CommandCatch(args []string, area LocationAreaBatch) {
+func CommandCatch(args []string, availablePokemon []Pokemon) {
 	pokemon := strings.TrimSpace(strings.ToLower(args[1]))
-	for _, v := range AvailablePokemon {
-		if v == pokemon {
-			pokeInfo, err := ParsePokedexDetails(pokemon.Url, cache)
+	for _, v := range availablePokemon {
+		if strings.ToLower(v.Name) == pokemon {
+			fmt.Printf(v.Name)
+			pokeInfo, err := ParsePokedexDetails(v.Url, DataStore)
+			if err != nil {
+				fmt.Println("fatal err encountered, exiting...")
+				os.Exit(0)
+			}
 			fmt.Printf("throwing a pokeball at %v\n", pokemon)
-			chance := rand.Intn(10) + 1
 			time.Sleep(1 * time.Second)
-			if chance >= 5 {
+			if pokeInfo.CatchChance() {
 				fmt.Printf("%v was caught!\n", pokemon)
+				Pokedex[v.Name] = pokeInfo
 				return
 			} else {
 				fmt.Printf("%v got away!\n", pokemon)
@@ -205,4 +225,26 @@ func CommandCatch(args []string, area LocationAreaBatch) {
 	fmt.Println("that pokemon isn't around here...")
 }
 
-//TODO: implement random chance of catching using base experience, implement inspect command, implement pokedex command
+func CommandInspect(args []string) {
+	if len(args) == 1 {
+		fmt.Println("which pokemon do you want to view?")
+	}
+	arg := SanitizeInput(args[1]) //should be the name of a location
+	pokemon, ok := Pokedex[arg]
+	if !ok {
+		fmt.Printf("you haven't caught %v yet...", arg)
+		return
+	}
+	DisplayPokemonInformation(pokemon)
+}
+
+func CommandPokedex(args []string) {
+	if len(Pokedex) == 0 {
+		fmt.Println("we haven't caught any pokemon yet...")
+		return
+	}
+	fmt.Println("your pokedex:")
+	for _, v := range Pokedex {
+		fmt.Printf("- %v\n", v.Forms[0].Name)
+	}
+}
